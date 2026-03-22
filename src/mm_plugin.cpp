@@ -93,6 +93,19 @@ std::string CounterStrikeJsPluginsPath()
     return utils::GameDirectory() + "/addons/counterstrikejs/plugins";
 }
 
+bool CounterStrikeJsIssueServerCommand(const char* commandLine)
+{
+    if (!commandLine || commandLine[0] == '\0' || !globals::engine)
+    {
+        return false;
+    }
+
+    auto cleanCommand = std::string(commandLine);
+    cleanCommand.append("\n\0");
+    globals::engine->ServerCommand(cleanCommand.c_str());
+    return true;
+}
+
 void RegisterCounterStrikeJsCommands()
 {
     g_counterStrikeJsCommands.clear();
@@ -286,6 +299,7 @@ bool CounterStrikeSharpMMPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, s
     const auto bootstrapPath = CounterStrikeJsBootstrapPath();
     const auto pluginsPath = CounterStrikeJsPluginsPath();
 
+    counterstrikejs::bridge::CounterStrikeJsSetServerCommandCallback(&CounterStrikeJsIssueServerCommand);
     if (!counterstrikejs::bridge::CounterStrikeJsInitialize(
             bootstrapPath.c_str(),
             pluginsPath.c_str()))
@@ -337,6 +351,7 @@ bool CounterStrikeSharpMMPlugin::Unload(char* error, size_t maxlen)
     globals::callbackManager.ReleaseCallback(on_activate_callback);
     globals::callbackManager.ReleaseCallback(on_metamod_all_plugins_loaded_callback);
     UnregisterCounterStrikeJsCommands();
+    counterstrikejs::bridge::CounterStrikeJsSetServerCommandCallback(nullptr);
     counterstrikejs::bridge::CounterStrikeJsShutdown();
 
     return true;

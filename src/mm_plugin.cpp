@@ -129,7 +129,29 @@ void UnregisterCounterStrikeJsCommands()
 
     g_counterStrikeJsCommands.clear();
 }
+
+bool ReloadCounterStrikeJsPlugins()
+{
+    if (!counterstrikejs::bridge::CounterStrikeJsReloadPlugins())
+    {
+        UnregisterCounterStrikeJsCommands();
+        CSSHARP_CORE_ERROR(
+            "Failed to reload CounterStrikeJS plugins: {}",
+            counterstrikejs::bridge::CounterStrikeJsGetLastError());
+        return false;
+    }
+
+    UnregisterCounterStrikeJsCommands();
+    RegisterCounterStrikeJsCommands();
+    CSSHARP_CORE_INFO("Reloaded CounterStrikeJS plugins.");
+    return true;
+}
 } // namespace
+
+CON_COMMAND(css_js_reload, "reload CounterStrikeJS plugins")
+{
+    counterstrikesharp::ReloadCounterStrikeJsPlugins();
+}
 
 SH_DECL_HOOK3_void(IServerGameDLL, GameFrame, SH_NOATTRIB, 0, bool, bool, bool);
 SH_DECL_HOOK3_void(

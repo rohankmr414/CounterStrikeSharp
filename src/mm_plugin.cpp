@@ -146,6 +146,18 @@ bool ReloadCounterStrikeJsPlugins()
     CSSHARP_CORE_INFO("Reloaded CounterStrikeJS plugins.");
     return true;
 }
+
+void SyncCounterStrikeJsCommandsIfNeeded()
+{
+    if (!counterstrikejs::bridge::CounterStrikeJsConsumeCommandRegistryDirty())
+    {
+        return;
+    }
+
+    UnregisterCounterStrikeJsCommands();
+    RegisterCounterStrikeJsCommands();
+    CSSHARP_CORE_INFO("Synchronized CounterStrikeJS command registrations.");
+}
 } // namespace
 
 CON_COMMAND(css_js_reload, "reload CounterStrikeJS plugins")
@@ -361,6 +373,8 @@ void CounterStrikeSharpMMPlugin::Hook_GameFrame(bool simulating, bool bFirstTick
             "CounterStrikeJS OnTick failed: {}",
             counterstrikejs::bridge::CounterStrikeJsGetLastError());
     }
+
+    SyncCounterStrikeJsCommandsIfNeeded();
 
     auto callbacks = globals::tickScheduler.getCallbacks(globals::getGlobalVars()->tickcount);
     if (callbacks.size() > 0)

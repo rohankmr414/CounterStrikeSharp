@@ -46,6 +46,7 @@
 #include "core/log.h"
 #include "core/memory.h"
 #include "core/utils.h"
+#include "integration/host_integration.h"
 #include "interfaces/cs2_interfaces.h"
 #include "metamod_oslink.h"
 #include "scripting/callback_manager.h"
@@ -466,6 +467,24 @@ void ConCommandManager::Hook_DispatchConCommand(ConCommandRef cmd, const CComman
     const char* name = args.Arg(0);
 
     CSSHARP_CORE_TRACE("[ConCommandManager::Hook_DispatchConCommand]: {}", name);
+
+    if (counterstrikejs::integration::CounterStrikeJsHasCommand(name))
+    {
+        std::vector<const char*> commandArgs;
+        commandArgs.reserve(std::max(args.ArgC() - 1, 0));
+        for (int index = 1; index < args.ArgC(); ++index)
+        {
+            commandArgs.push_back(args.Arg(index));
+        }
+
+        if (!counterstrikejs::integration::CounterStrikeJsExecuteCommand(name, commandArgs.size(), commandArgs.data()))
+        {
+            CSSHARP_CORE_ERROR(
+                "CounterStrikeJS command '{}' failed: {}",
+                name,
+                counterstrikejs::integration::CounterStrikeJsGetLastError());
+        }
+    }
 
     auto result = ExecuteCommandCallbacks(name, ctx, args, HookMode::Pre, CommandCallingContext::Console);
     if (result >= HookResult::Handled)

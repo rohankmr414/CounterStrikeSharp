@@ -6,6 +6,8 @@ project(counterstrikesharp C CXX ASM)
 include("makefiles/shared.cmake")
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+set(COUNTERSTRIKEJS_HOST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../host")
+set(COUNTERSTRIKEJS_BUILD_STANDALONE OFF CACHE BOOL "Disable the standalone CounterStrikeJS host executable in embedded builds." FORCE)
 
 set(FUNCHOOK_BUILD_TESTS OFF CACHE BOOL "Disable building tests for funchook." FORCE)
 set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "Disable building examples for Zydis." FORCE)
@@ -16,6 +18,7 @@ add_subdirectory(libraries/spdlog)
 add_subdirectory(libraries/dyncall)
 add_subdirectory(libraries/funchook)
 add_subdirectory(libraries/DynoHook)
+add_subdirectory(${COUNTERSTRIKEJS_HOST_DIR} ${CMAKE_CURRENT_BINARY_DIR}/counterstrikejs-host)
 
 set_property(TARGET dynohook PROPERTY DYNO_ARCH_X86 64)
 set_property(TARGET funchook-static PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -139,10 +142,18 @@ elseif(WIN32)
 endif()
 
 # Libraries
-target_link_libraries(${PROJECT_NAME} ${COUNTER_STRIKE_SHARP_LINK_LIBRARIES} Protobufs)
+target_link_libraries(${PROJECT_NAME} ${COUNTER_STRIKE_SHARP_LINK_LIBRARIES} Protobufs counterstrikejs-host-lib)
 
 add_custom_command(
     TARGET ${PROJECT_NAME} PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/configs ${CMAKE_BINARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+    ${CMAKE_BINARY_DIR}/addons/counterstrikejs
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/../runtime
+    ${CMAKE_BINARY_DIR}/addons/counterstrikejs/runtime
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/../plugins
+    ${CMAKE_BINARY_DIR}/addons/counterstrikejs/plugins
 )

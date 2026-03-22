@@ -29,6 +29,7 @@
 #include "core/utils.h"
 #include "entity2/entitysystem.h"
 #include "igameeventsystem.h"
+#include "integration/host_integration.h"
 #include "interfaces/cs2_interfaces.h"
 #include "iserver.h"
 #include "scripting/callback_manager.h"
@@ -37,6 +38,8 @@
 #include "tier0/vprof.h"
 #include "tier0/icommandline.h"
 #include "tier1/utlstringtoken.h"
+
+#include <vector>
 
 DLL_IMPORT ICommandLine* CommandLine();
 
@@ -76,6 +79,57 @@ class GameSessionConfiguration_t
 PLUGIN_EXPOSE(CounterStrikeSharpMMPlugin, counterstrikesharp::gPlugin);
 
 namespace counterstrikesharp {
+
+namespace {
+std::vector<std::string> g_counterStrikeJsCommands;
+
+std::string CounterStrikeJsBootstrapPath()
+{
+    return utils::GameDirectory() + "/addons/counterstrikejs/runtime/bootstrap/bootstrap.js";
+}
+
+std::string CounterStrikeJsPluginsPath()
+{
+    return utils::GameDirectory() + "/addons/counterstrikejs/plugins";
+}
+
+void RegisterCounterStrikeJsCommands()
+{
+    g_counterStrikeJsCommands.clear();
+
+    const int commandCount = counterstrikejs::integration::CounterStrikeJsGetCommandCount();
+    for (int index = 0; index < commandCount; ++index)
+    {
+        const char* commandName = counterstrikejs::integration::CounterStrikeJsGetCommandName(index);
+        if (!commandName || commandName[0] == '\0')
+        {
+            continue;
+        }
+
+        if (!globals::conCommandManager.AddValveCommand(commandName, "CounterStrikeJS command", false, 0))
+        {
+            CSSHARP_CORE_WARN("Failed to register CounterStrikeJS command '{}'", commandName);
+            continue;
+        }
+
+        g_counterStrikeJsCommands.emplace_back(commandName);
+        CSSHARP_CORE_INFO("Registered CounterStrikeJS command '{}'", commandName);
+    }
+}
+
+void UnregisterCounterStrikeJsCommands()
+{
+    for (const auto& commandName : g_counterStrikeJsCommands)
+    {
+        if (!globals::conCommandManager.RemoveValveCommand(commandName.c_str()))
+        {
+            CSSHARP_CORE_WARN("Failed to remove CounterStrikeJS command '{}'", commandName);
+        }
+    }
+
+    g_counterStrikeJsCommands.clear();
+}
+} // namespace
 
 SH_DECL_HOOK3_void(IServerGameDLL, GameFrame, SH_NOATTRIB, 0, bool, bool, bool);
 SH_DECL_HOOK3_void(
@@ -195,6 +249,23 @@ bool CounterStrikeSharpMMPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, s
         CSSHARP_CORE_ERROR("Failed to initialize .NET runtime");
     }
 
+    const auto bootstrapPath = CounterStrikeJsBootstrapPath();
+    const auto pluginsPath = CounterStrikeJsPluginsPath();
+
+    if (!counterstrikejs::integration::CounterStrikeJsInitialize(
+            bootstrapPath.c_str(),
+            pluginsPath.c_str()))
+    {
+        CSSHARP_CORE_ERROR(
+            "Failed to initialize CounterStrikeJS host: {}",
+            counterstrikejs::integration::CounterStrikeJsGetLastError());
+    }
+    else
+    {
+        CSSHARP_CORE_INFO("CounterStrikeJS host initialized successfully.");
+        RegisterCounterStrikeJsCommands();
+    }
+
     CSSHARP_CORE_INFO("Hooks added.");
 
     // Used by Metamod Console Commands
@@ -214,6 +285,13 @@ void CounterStrikeSharpMMPlugin::Hook_StartupServer(const GameSessionConfigurati
     on_activate_callback->ScriptContext().Reset();
     on_activate_callback->ScriptContext().Push(globals::getGlobalVars()->mapname.ToCStr());
     on_activate_callback->Execute();
+
+    if (!counterstrikejs::integration::CounterStrikeJsOnMapStart(globals::getGlobalVars()->mapname.ToCStr()))
+    {
+        CSSHARP_CORE_ERROR(
+            "CounterStrikeJS OnMapStart failed: {}",
+            counterstrikejs::integration::CounterStrikeJsGetLastError());
+    }
 }
 bool CounterStrikeSharpMMPlugin::Unload(char* error, size_t maxlen)
 {
@@ -224,6 +302,8 @@ bool CounterStrikeSharpMMPlugin::Unload(char* error, size_t maxlen)
 
     globals::callbackManager.ReleaseCallback(on_activate_callback);
     globals::callbackManager.ReleaseCallback(on_metamod_all_plugins_loaded_callback);
+    UnregisterCounterStrikeJsCommands();
+    counterstrikejs::integration::CounterStrikeJsShutdown();
 
     return true;
 }
@@ -252,6 +332,13 @@ void CounterStrikeSharpMMPlugin::Hook_GameFrame(bool simulating, bool bFirstTick
      */
     // VPROF_BUDGET("CS#::Hook_GameFrame", "CS# On Frame");
     globals::timerSystem.OnGameFrame(simulating);
+
+    if (simulating && !counterstrikejs::integration::CounterStrikeJsOnTick())
+    {
+        CSSHARP_CORE_ERROR(
+            "CounterStrikeJS OnTick failed: {}",
+            counterstrikejs::integration::CounterStrikeJsGetLastError());
+    }
 
     auto callbacks = globals::tickScheduler.getCallbacks(globals::getGlobalVars()->tickcount);
     if (callbacks.size() > 0)

@@ -46,7 +46,7 @@
 #include "core/log.h"
 #include "core/memory.h"
 #include "core/utils.h"
-#include "integration/host_integration.h"
+#include "counterstrikejs/bridge.h"
 #include "interfaces/cs2_interfaces.h"
 #include "metamod_oslink.h"
 #include "scripting/callback_manager.h"
@@ -468,7 +468,7 @@ void ConCommandManager::Hook_DispatchConCommand(ConCommandRef cmd, const CComman
 
     CSSHARP_CORE_TRACE("[ConCommandManager::Hook_DispatchConCommand]: {}", name);
 
-    if (counterstrikejs::integration::CounterStrikeJsHasCommand(name))
+    if (counterstrikejs::bridge::CounterStrikeJsHasCommand(name))
     {
         std::vector<const char*> commandArgs;
         commandArgs.reserve(std::max(args.ArgC() - 1, 0));
@@ -477,12 +477,12 @@ void ConCommandManager::Hook_DispatchConCommand(ConCommandRef cmd, const CComman
             commandArgs.push_back(args.Arg(index));
         }
 
-        if (!counterstrikejs::integration::CounterStrikeJsExecuteCommand(name, commandArgs.size(), commandArgs.data()))
+        if (!counterstrikejs::bridge::CounterStrikeJsExecuteCommand(name, commandArgs.size(), commandArgs.data()))
         {
             CSSHARP_CORE_ERROR(
                 "CounterStrikeJS command '{}' failed: {}",
                 name,
-                counterstrikejs::integration::CounterStrikeJsGetLastError());
+                counterstrikejs::bridge::CounterStrikeJsGetLastError());
         }
     }
 

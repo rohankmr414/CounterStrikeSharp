@@ -29,7 +29,7 @@
 #include "core/utils.h"
 #include "entity2/entitysystem.h"
 #include "igameeventsystem.h"
-#include "integration/host_integration.h"
+#include "counterstrikejs/bridge.h"
 #include "interfaces/cs2_interfaces.h"
 #include "iserver.h"
 #include "scripting/callback_manager.h"
@@ -97,10 +97,10 @@ void RegisterCounterStrikeJsCommands()
 {
     g_counterStrikeJsCommands.clear();
 
-    const int commandCount = counterstrikejs::integration::CounterStrikeJsGetCommandCount();
+    const int commandCount = counterstrikejs::bridge::CounterStrikeJsGetCommandCount();
     for (int index = 0; index < commandCount; ++index)
     {
-        const char* commandName = counterstrikejs::integration::CounterStrikeJsGetCommandName(index);
+        const char* commandName = counterstrikejs::bridge::CounterStrikeJsGetCommandName(index);
         if (!commandName || commandName[0] == '\0')
         {
             continue;
@@ -252,13 +252,13 @@ bool CounterStrikeSharpMMPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, s
     const auto bootstrapPath = CounterStrikeJsBootstrapPath();
     const auto pluginsPath = CounterStrikeJsPluginsPath();
 
-    if (!counterstrikejs::integration::CounterStrikeJsInitialize(
+    if (!counterstrikejs::bridge::CounterStrikeJsInitialize(
             bootstrapPath.c_str(),
             pluginsPath.c_str()))
     {
         CSSHARP_CORE_ERROR(
             "Failed to initialize CounterStrikeJS host: {}",
-            counterstrikejs::integration::CounterStrikeJsGetLastError());
+            counterstrikejs::bridge::CounterStrikeJsGetLastError());
     }
     else
     {
@@ -286,11 +286,11 @@ void CounterStrikeSharpMMPlugin::Hook_StartupServer(const GameSessionConfigurati
     on_activate_callback->ScriptContext().Push(globals::getGlobalVars()->mapname.ToCStr());
     on_activate_callback->Execute();
 
-    if (!counterstrikejs::integration::CounterStrikeJsOnMapStart(globals::getGlobalVars()->mapname.ToCStr()))
+    if (!counterstrikejs::bridge::CounterStrikeJsOnMapStart(globals::getGlobalVars()->mapname.ToCStr()))
     {
         CSSHARP_CORE_ERROR(
             "CounterStrikeJS OnMapStart failed: {}",
-            counterstrikejs::integration::CounterStrikeJsGetLastError());
+            counterstrikejs::bridge::CounterStrikeJsGetLastError());
     }
 }
 bool CounterStrikeSharpMMPlugin::Unload(char* error, size_t maxlen)
@@ -303,7 +303,7 @@ bool CounterStrikeSharpMMPlugin::Unload(char* error, size_t maxlen)
     globals::callbackManager.ReleaseCallback(on_activate_callback);
     globals::callbackManager.ReleaseCallback(on_metamod_all_plugins_loaded_callback);
     UnregisterCounterStrikeJsCommands();
-    counterstrikejs::integration::CounterStrikeJsShutdown();
+    counterstrikejs::bridge::CounterStrikeJsShutdown();
 
     return true;
 }
@@ -333,11 +333,11 @@ void CounterStrikeSharpMMPlugin::Hook_GameFrame(bool simulating, bool bFirstTick
     // VPROF_BUDGET("CS#::Hook_GameFrame", "CS# On Frame");
     globals::timerSystem.OnGameFrame(simulating);
 
-    if (simulating && !counterstrikejs::integration::CounterStrikeJsOnTick())
+    if (simulating && !counterstrikejs::bridge::CounterStrikeJsOnTick())
     {
         CSSHARP_CORE_ERROR(
             "CounterStrikeJS OnTick failed: {}",
-            counterstrikejs::integration::CounterStrikeJsGetLastError());
+            counterstrikejs::bridge::CounterStrikeJsGetLastError());
     }
 
     auto callbacks = globals::tickScheduler.getCallbacks(globals::getGlobalVars()->tickcount);
